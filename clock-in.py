@@ -11,40 +11,36 @@ import sys
 import ddddocr
 
 
-class ClockIn(object):
+class DaKa(object):
     """Hit card class
     Attributes:
         username: (str) 浙大统一认证平台用户名（一般为学号）
         password: (str) 浙大统一认证平台密码
-        eai_sess: (str) cookie of healthreport.zju.edu.cn/ncov/wap/default/index
-        LOGIN_URL: (str) 登录url
-        BASE_URL: (str) 打卡首页url
-        SAVE_URL: (str) 提交打卡url
-        HEADERS: (dir) 请求头
+        login_url: (str) 登录url
+        base_url: (str) 打卡首页url
+        save_url: (str) 提交打卡url
+        self.headers: (dir) 请求头
         sess: (requests.Session) 统一的session
     """
-    LOGIN_URL = "https://zjuam.zju.edu.cn/cas/login?service=https%3A%2F%2Fhealthreport.zju.edu.cn%2Fa_zju%2Fapi%2Fsso%2Findex%3Fredirect%3Dhttps%253A%252F%252Fhealthreport.zju.edu.cn%252Fncov%252Fwap%252Fdefault%252Findex"
-    BASE_URL = "https://healthreport.zju.edu.cn/ncov/wap/default/index"
-    SAVE_URL = "https://healthreport.zju.edu.cn/ncov/wap/default/save"
-    CAPTCHA_URL = 'https://healthreport.zju.edu.cn/ncov/wap/default/code'
-    HEADERS = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36"
-    }
-    
-    def __init__(self, username, password, eai_sess):
+
+    def __init__(self, username, password):
         self.username = username
         self.password = password
-        self.eai_sess = eai_sess
+        self.login_url = "https://zjuam.zju.edu.cn/cas/login?service=https%3A%2F%2Fhealthreport.zju.edu.cn%2Fa_zju%2Fapi%2Fsso%2Findex%3Fredirect%3Dhttps%253A%252F%252Fhealthreport.zju.edu.cn%252Fncov%252Fwap%252Fdefault%252Findex"
+        self.base_url = "https://healthreport.zju.edu.cn/ncov/wap/default/index"
+        self.save_url = "https://healthreport.zju.edu.cn/ncov/wap/default/save"
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36"
+        }
         self.sess = requests.Session()
-        self.ocr = ddddocr.DdddOcr()
 
     def login(self):
         """Login to ZJU platform"""
-        res = self.sess.get(self.LOGIN_URL, headers=self.HEADERS)
+        res = self.sess.get(self.login_url, headers=self.headers)
         execution = re.search(
             'name="execution" value="(.*?)"', res.text).group(1)
         res = self.sess.get(
-            url='https://zjuam.zju.edu.cn/cas/v2/getPubKey', headers=self.HEADERS).json()
+            url='https://zjuam.zju.edu.cn/cas/v2/getPubKey', headers=self.headers).json()
         n, e = res['modulus'], res['exponent']
         encrypt_password = self._rsa_encrypt(self.password, e, n)
 
@@ -54,7 +50,7 @@ class ClockIn(object):
             'execution': execution,
             '_eventId': 'submit'
         }
-        res = self.sess.post(url=self.LOGIN_URL, data=data, headers=self.HEADERS)
+        res = self.sess.post(url=self.login_url, data=data, headers=self.headers)
 
         # check if login successfully
         if '统一身份认证' in res.content.decode():
@@ -63,7 +59,7 @@ class ClockIn(object):
 
     def post(self):
         """Post the hitcard info"""
-        res = self.sess.post(self.SAVE_URL, data=self.info, headers=self.HEADERS)
+        res = self.sess.post(self.save_url, data=self.info, headers=self.headers)
         return json.loads(res.text)
 
     def get_date(self):
@@ -83,7 +79,7 @@ class ClockIn(object):
     def get_info(self, html=None):
         """Get hitcard info, which is the old info with updated new time."""
         if not html:
-            res = self.sess.get(self.BASE_URL, headers=self.HEADERS)
+            res = self.sess.get(self.base_url, headers=self.headers)
             html = res.content.decode()
 
         try:
@@ -121,6 +117,7 @@ class ClockIn(object):
         new_info['jcqzrq'] = ""
         new_info['gwszdd'] = ""
         new_info['szgjcs'] = ""
+
         new_info['verifyCode'] = self.get_captcha()
 
         # 2021.08.05 Fix 2
@@ -156,18 +153,17 @@ class DecodeError(Exception):
     pass
 
 
-def main(username, password, eai_sess):
+def main(username, password):
     """Hit card process
     Arguments:
         username: (str) 浙大统一认证平台用户名（一般为学号）
         password: (str) 浙大统一认证平台密码
-        eai-sess: (str) cookie of healthreport.zju.edu.cn/ncov/wap/default/index
     """
     print("\n[Time] %s" %
           datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     print("🚌 打卡任务启动")
 
-    dk = ClockIn(username, password, eai_sess)
+    dk = DaKa(username, password)
 
     print("登录到浙大统一身份认证平台...")
     try:
@@ -185,7 +181,7 @@ def main(username, password, eai_sess):
         print('获取信息失败，请手动打卡，更多信息: ' + str(err))
         raise Exception
 
-    print('正在为您打卡')
+    print('正在为您打卡打卡打卡')
     try:
         res = dk.post()
         if str(res['e']) == '0':
@@ -209,8 +205,7 @@ def main(username, password, eai_sess):
 if __name__ == "__main__":
     username = sys.argv[1]
     password = sys.argv[2]
-    eai_sess = sys.argv[3]
     try:
-        main(username, password, eai_sess)
+        main(username, password)
     except Exception:
         exit(1)
